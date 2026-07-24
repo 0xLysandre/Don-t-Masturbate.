@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Accountability Blocker — settings</title>
+    <link rel="stylesheet" href="ui.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Accountability Blocker</h1>
+      <p class="muted">
+        Your lists, vault and check-ins live in the companion app on this machine. Nothing is sent
+        anywhere.
+      </p>
+
+      <div id="banner" class="banner warn">Checking the companion app…</div>
+
+      <section>
+        <div class="spread">
+          <h2>Session</h2>
+          <span id="session-pill" class="pill muted">…</span>
+        </div>
+        <p id="session-detail" class="muted">…</p>
+        <div id="setup-block" hidden>
+          <p>The companion app has not been set up yet.</p>
+          <div class="inline">
+            <div class="field">
+              <label for="setup-cooldown">Unlock cooldown (hours)</label>
+              <input id="setup-cooldown" type="number" min="0" max="720" step="1" value="12" />
+            </div>
+            <button class="primary" id="setup-run">Run setup</button>
+          </div>
+          <p class="fine">
+            Setup generates a random password, encrypts it, and never shows it to you.
+          </p>
+        </div>
+        <div id="session-start-block" hidden>
+          <div class="inline">
+            <div class="field">
+              <label for="session-hours">Session length (hours)</label>
+              <input id="session-hours" type="number" min="1" max="8760" step="1" value="24" />
+            </div>
+            <button class="primary" id="session-start">Start session</button>
+          </div>
+          <p class="fine">
+            Starting a session generates a fresh password and locks your lists until it ends.
+          </p>
+        </div>
+        <div id="session-stop-block" hidden>
+          <div class="inline">
+            <div class="field">
+              <label for="session-password">Vault password (from an unlock)</label>
+              <input id="session-password" type="password" autocomplete="off" />
+            </div>
+            <button class="danger" id="session-stop">End session now</button>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="spread">
+          <h2>Blocked domains</h2>
+          <span class="status-line" id="blocklist-count"></span>
+        </div>
+        <div class="field">
+          <label for="blocklist">One domain per line. Subdomains are covered automatically.</label>
+          <textarea id="blocklist" spellcheck="false" placeholder="example.com"></textarea>
+        </div>
+        <div class="row">
+          <button class="primary" id="blocklist-save">Save domains</button>
+          <span class="status-line" id="blocklist-status"></span>
+        </div>
+      </section>
+
+      <section>
+        <div class="spread">
+          <h2>Flagged search terms</h2>
+          <span class="status-line" id="keyword-count"></span>
+        </div>
+        <p class="muted">
+          Matched as plain substrings against what you type into Google, Bing, DuckDuckGo and
+          YouTube search, and against search URLs you open directly.
+        </p>
+        <div class="field">
+          <label for="keywords">One term per line.</label>
+          <textarea id="keywords" spellcheck="false" hidden></textarea>
+          <div id="keywords-hidden" class="muted">
+            Hidden while a session is running — reading your own list is rarely a good idea
+            mid-session.
+            <button id="keywords-reveal" style="margin-left: 0.5rem">Show anyway</button>
+          </div>
+        </div>
+        <div class="row">
+          <button class="primary" id="keywords-save">Save terms</button>
+          <span class="status-line" id="keywords-status"></span>
+        </div>
+      </section>
+
+      <section id="locked-note" hidden>
+        <h2>Editing while locked</h2>
+        <p class="muted">
+          A session is running, so changes to the lists need the vault password. Request an unlock
+          below and wait out the cooldown.
+        </p>
+        <div class="field">
+          <label for="edit-password">Vault password (used for the saves above)</label>
+          <input id="edit-password" type="password" autocomplete="off" />
+        </div>
+      </section>
+
+      <section>
+        <h2>Unlock (time-locked)</h2>
+        <p class="muted">
+          Requesting an unlock does not reveal anything straight away — it starts a cooldown. Every
+          request is timestamped and kept in the log below.
+        </p>
+        <p id="unlock-state">…</p>
+        <div id="password-box" hidden>
+          <div class="password" id="password-value"></div>
+          <p class="fine" id="password-note"></p>
+        </div>
+        <div class="row">
+          <button id="unlock-request">Request unlock</button>
+          <button id="unlock-reveal" disabled>Reveal password</button>
+          <button id="unlock-cancel" disabled>Cancel request</button>
+        </div>
+        <div class="scroll" style="margin-top: 1rem">
+          <table>
+            <thead>
+              <tr>
+                <th>Requested</th>
+                <th>Available</th>
+                <th>Status</th>
+                <th>Revealed</th>
+              </tr>
+            </thead>
+            <tbody id="unlock-history"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section>
+        <h2>Daily check-in</h2>
+        <div class="streaks">
+          <div>
+            <div class="streak-n" id="streak-current">–</div>
+            <div class="streak-l">current streak</div>
+          </div>
+          <div>
+            <div class="streak-n" id="streak-longest">–</div>
+            <div class="streak-l">longest streak</div>
+          </div>
+        </div>
+        <p id="checkin-state" class="muted">…</p>
+        <div class="row">
+          <button class="primary" id="checkin-yes">Stayed on track</button>
+          <button id="checkin-no">Slipped today</button>
+          <button id="open-dashboard">Open full dashboard</button>
+        </div>
+      </section>
+    </main>
+    <script src="options.js"></script>
+  </body>
+</html>

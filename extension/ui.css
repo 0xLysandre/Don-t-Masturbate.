@@ -1,0 +1,269 @@
+:root {
+  color-scheme: light dark;
+  --bg: #f6f7f9;
+  --card: #ffffff;
+  --ink: #1b1d22;
+  --muted: #6b7280;
+  --line: #e3e6ea;
+  --ok: #1a7f4b;
+  --warn: #a15c07;
+  --bad: #b3261e;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14161a;
+    --card: #1c1f25;
+    --ink: #e9ecf1;
+    --muted: #9aa3b2;
+    --line: #2b2f37;
+    --ok: #55d18b;
+    --warn: #e0a33c;
+    --bad: #ef8079;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 2rem 1rem 4rem;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.55 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+body.centered {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+main {
+  max-width: 46rem;
+  margin: 0 auto;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 1.75rem;
+  max-width: 34rem;
+}
+
+section {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 1.15rem 1.25rem;
+  margin-bottom: 1rem;
+}
+
+h1 {
+  font-size: 1.45rem;
+  margin: 0 0 0.5rem;
+}
+
+h2 {
+  font-size: 1rem;
+  margin: 0 0 0.75rem;
+}
+
+p {
+  margin: 0 0 0.75rem;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-bottom: 0.4rem;
+}
+
+.lead {
+  font-size: 1.02rem;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.fine {
+  color: var(--muted);
+  font-size: 0.83rem;
+  margin-top: 1.1rem;
+  margin-bottom: 0;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.spread {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: baseline;
+}
+
+button {
+  font: inherit;
+  padding: 0.5rem 0.95rem;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+
+button.primary {
+  background: var(--ink);
+  color: var(--card);
+  border-color: var(--ink);
+}
+
+button.danger {
+  color: var(--bad);
+  border-color: var(--bad);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+input,
+textarea {
+  font: inherit;
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+}
+
+textarea {
+  min-height: 7rem;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.88rem;
+}
+
+label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 0.3rem;
+}
+
+.field {
+  margin-bottom: 0.9rem;
+}
+
+.inline {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.inline .field {
+  flex: 1 1 10rem;
+  margin-bottom: 0;
+}
+
+.pill {
+  display: inline-block;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  border: 1px solid currentColor;
+}
+
+.ok {
+  color: var(--ok);
+}
+.warn {
+  color: var(--warn);
+}
+.bad {
+  color: var(--bad);
+}
+
+.banner {
+  border-radius: 10px;
+  padding: 0.75rem 0.95rem;
+  border: 1px solid currentColor;
+  margin-bottom: 1rem;
+  font-size: 0.92rem;
+}
+
+.password {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 1.15rem;
+  padding: 0.85rem 1rem;
+  border: 1px dashed var(--warn);
+  border-radius: 8px;
+  word-break: break-all;
+  margin: 0.6rem 0;
+}
+
+.streaks {
+  display: flex;
+  gap: 2.5rem;
+  margin-bottom: 0.9rem;
+}
+
+.streak-n {
+  font-size: 1.9rem;
+  font-weight: 650;
+  line-height: 1.1;
+}
+
+.streak-l {
+  font-size: 0.78rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+}
+
+th {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.scroll {
+  overflow-x: auto;
+}
+
+.status-line {
+  font-size: 0.85rem;
+  color: var(--muted);
+}

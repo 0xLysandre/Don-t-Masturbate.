@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Accountability companion</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f6f7f9;
+        --card: #ffffff;
+        --ink: #1b1d22;
+        --muted: #6b7280;
+        --line: #e3e6ea;
+        --ok: #1a7f4b;
+        --warn: #a15c07;
+        --bad: #b3261e;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #14161a;
+          --card: #1c1f25;
+          --ink: #e9ecf1;
+          --muted: #9aa3b2;
+          --line: #2b2f37;
+          --ok: #55d18b;
+          --warn: #e0a33c;
+          --bad: #ef8079;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 2rem 1rem 4rem;
+        background: var(--bg);
+        color: var(--ink);
+        font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      }
+      main { max-width: 46rem; margin: 0 auto; }
+      h1 { font-size: 1.5rem; margin: 0 0 0.25rem; }
+      h2 { font-size: 1rem; margin: 0 0 0.75rem; letter-spacing: 0.01em; }
+      .sub { color: var(--muted); margin: 0 0 1.75rem; }
+      section {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 1.15rem 1.25rem;
+        margin-bottom: 1rem;
+      }
+      .row { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; }
+      .spread { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+      button {
+        font: inherit;
+        padding: 0.5rem 0.95rem;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: var(--bg);
+        color: var(--ink);
+        cursor: pointer;
+      }
+      button:hover { border-color: var(--muted); }
+      button.primary { background: var(--ink); color: var(--card); border-color: var(--ink); }
+      button:disabled { opacity: 0.5; cursor: not-allowed; }
+      .pill {
+        display: inline-block;
+        padding: 0.15rem 0.6rem;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        border: 1px solid currentColor;
+      }
+      .ok { color: var(--ok); }
+      .warn { color: var(--warn); }
+      .bad { color: var(--bad); }
+      .muted { color: var(--muted); }
+      .streaks { display: flex; gap: 2.5rem; margin: 0.5rem 0 1rem; }
+      .streak-n { font-size: 2rem; font-weight: 650; line-height: 1.1; }
+      .streak-l { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+      code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .password {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 1.2rem;
+        padding: 0.9rem 1rem;
+        border: 1px dashed var(--warn);
+        border-radius: 8px;
+        word-break: break-all;
+        margin: 0.75rem 0 0.25rem;
+      }
+      table { width: 100%; border-collapse: collapse; font-size: 0.87rem; }
+      th, td { text-align: left; padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--line); }
+      th { color: var(--muted); font-weight: 600; }
+      .scroll { overflow-x: auto; }
+      .days { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 0.75rem; }
+      .day { width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--line); }
+      .day.yes { background: var(--ok); border-color: var(--ok); }
+      .day.no { background: var(--bad); border-color: var(--bad); }
+      footer { color: var(--muted); font-size: 0.83rem; text-align: center; margin-top: 2rem; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Accountability companion</h1>
+      <p class="sub">Local only. Nothing on this page ever leaves your machine.</p>
+
+      <section>
+        <div class="spread">
+          <h2>Protection</h2>
+          <span id="protection-pill" class="pill muted">loading…</span>
+        </div>
+        <p id="protection-detail" class="muted">…</p>
+        <p class="muted" id="list-detail"></p>
+      </section>
+
+      <section>
+        <h2>Today's check-in</h2>
+        <div class="streaks">
+          <div>
+            <div class="streak-n" id="streak-current">–</div>
+            <div class="streak-l">current streak</div>
+          </div>
+          <div>
+            <div class="streak-n" id="streak-longest">–</div>
+            <div class="streak-l">longest streak</div>
+          </div>
+        </div>
+        <p id="checkin-state" class="muted">…</p>
+        <div class="row">
+          <button class="primary" id="checkin-yes">Stayed on track</button>
+          <button id="checkin-no">Slipped today</button>
+        </div>
+        <div class="days" id="days" aria-label="Recent check-ins"></div>
+      </section>
+
+      <section>
+        <h2>Unlock (time-locked)</h2>
+        <p class="muted">
+          Requesting an unlock starts a cooldown. The password is not shown until the cooldown
+          elapses, and every request below is timestamped.
+        </p>
+        <p id="unlock-state">…</p>
+        <div id="password-box" hidden>
+          <div class="password" id="password-value"></div>
+          <p class="muted" id="password-note"></p>
+        </div>
+        <div class="row">
+          <button id="unlock-request">Request unlock</button>
+          <button id="unlock-reveal" disabled>Reveal password</button>
+          <button id="unlock-cancel" disabled>Cancel request</button>
+        </div>
+        <div class="scroll" style="margin-top: 1rem">
+          <table>
+            <thead>
+              <tr><th>Requested</th><th>Available</th><th>Status</th><th>Revealed</th></tr>
+            </thead>
+            <tbody id="unlock-history"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <footer>
+        Data directory is encrypted at rest with AES-256-GCM. No telemetry, no network calls.
+      </footer>
+    </main>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+
+      async function api(path, body) {
+        const res = await fetch(path, {
+          method: body === undefined ? 'GET' : 'POST',
+          headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
+          body: body === undefined ? undefined : JSON.stringify(body),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+        return data;
+      }
+
+      function duration(ms) {
+        if (ms <= 0) return '0m';
+        const h = Math.floor(ms / 3600000);
+        const m = Math.floor((ms % 3600000) / 60000);
+        return h > 0 ? `${h}h ${m}m` : `${m}m`;
+      }
+
+      function renderStatus(s) {
+        const pill = $('protection-pill');
+        if (s.protection.active) {
+          pill.textContent = 'active';
+          pill.className = 'pill ok';
+          $('protection-detail').textContent =
+            `Locked for another ${duration(s.protection.remainingMs)} — until ` +
+            new Date(s.protection.endsAt).toLocaleString() + '.';
+        } else {
+          pill.textContent = 'inactive';
+          pill.className = 'pill warn';
+          $('protection-detail').textContent = s.setupComplete
+            ? 'No session running. Start one with: companion start --hours 24'
+            : 'Not set up yet. Run: companion setup';
+        }
+        $('list-detail').textContent =
+          `${s.lists.blocklistCount} blocked domain(s), ${s.lists.keywordCount} flagged term(s). ` +
+          (s.passwordExists ? 'A vault password exists (encrypted, never displayed).' : 'No vault password yet.');
+      }
+
+      function renderCheckin(c) {
+        $('streak-current').textContent = c.currentStreak;
+        $('streak-longest').textContent = c.longestStreak;
+        $('checkin-state').textContent = c.checkedInToday
+          ? `Checked in for ${c.today}: ${c.todayOnTrack ? 'on track' : 'slipped'}. You can change it today.`
+          : `No check-in yet for ${c.today}.`;
+        const days = $('days');
+        days.textContent = '';
+        for (const entry of c.history || []) {
+          const cell = document.createElement('div');
+          cell.className = `day ${entry.onTrack ? 'yes' : 'no'}`;
+          cell.title = `${entry.date}: ${entry.onTrack ? 'on track' : 'slipped'}`;
+          days.appendChild(cell);
+        }
+      }
+
+      function renderUnlock(status) {
+        const req = status.request;
+        const reveal = $('unlock-reveal');
+        const cancel = $('unlock-cancel');
+        const request = $('unlock-request');
+        if (!req) {
+          $('unlock-state').textContent = status.active
+            ? 'No unlock requested.'
+            : 'Nothing is locked right now.';
+          reveal.disabled = true;
+          cancel.disabled = true;
+          request.disabled = !status.active;
+          return;
+        }
+        if (req.status === 'pending') {
+          $('unlock-state').innerHTML =
+            `Cooldown running — <strong>${duration(req.availableInMs)}</strong> left ` +
+            `(available ${new Date(req.availableAt).toLocaleString()}).`;
+        } else if (req.status === 'ready') {
+          $('unlock-state').textContent = 'Cooldown elapsed. The password can be revealed once.';
+        } else if (req.status === 'revealed') {
+          $('unlock-state').textContent =
+            `Revealed at ${new Date(req.revealedAt).toLocaleString()}.` +
+            (req.revealWindowRemainingMs > 0
+              ? ` Re-viewable for another ${duration(req.revealWindowRemainingMs)}.`
+              : ' The copy window has closed; request a new unlock if you need it again.');
+        } else {
+          $('unlock-state').textContent = `Request ${req.status}.`;
+        }
+        reveal.disabled = !req.revealable;
+        cancel.disabled = !(req.status === 'pending' || req.status === 'ready');
+        request.disabled = req.status === 'pending' || req.status === 'ready';
+      }
+
+      function renderHistory(rows) {
+        const tbody = $('unlock-history');
+        tbody.textContent = '';
+        if (rows.length === 0) {
+          const tr = document.createElement('tr');
+          const td = document.createElement('td');
+          td.colSpan = 4;
+          td.className = 'muted';
+          td.textContent = 'No unlock requests yet.';
+          tr.appendChild(td);
+          tbody.appendChild(tr);
+          return;
+        }
+        for (const row of rows.slice().reverse()) {
+          const tr = document.createElement('tr');
+          for (const value of [
+            new Date(row.requestedAt).toLocaleString(),
+            new Date(row.availableAt).toLocaleString(),
+            row.status,
+            row.revealedAt ? new Date(row.revealedAt).toLocaleString() : '—',
+          ]) {
+            const td = document.createElement('td');
+            td.textContent = value;
+            tr.appendChild(td);
+          }
+          tbody.appendChild(tr);
+        }
+      }
+
+      async function refresh() {
+        try {
+          const [status, history] = await Promise.all([api('/status'), api('/unlock/history')]);
+          renderStatus(status);
+          renderCheckin(status.checkin);
+          renderUnlock(status.unlock);
+          renderHistory(history.requests);
+        } catch (err) {
+          $('protection-detail').textContent = `Cannot reach the companion: ${err.message}`;
+        }
+      }
+
+      async function guard(fn) {
+        try {
+          await fn();
+        } catch (err) {
+          alert(err.message);
+        }
+        refresh();
+      }
+
+      $('checkin-yes').onclick = () => guard(() => api('/checkin', { onTrack: true }));
+      $('checkin-no').onclick = () => guard(() => api('/checkin', { onTrack: false }));
+      $('unlock-request').onclick = () =>
+        guard(async () => {
+          if (!confirm('Start the unlock cooldown? This is logged with a timestamp.')) return;
+          await api('/unlock/request', {});
+        });
+      $('unlock-cancel').onclick = () => guard(() => api('/unlock/cancel', {}));
+      $('unlock-reveal').onclick = () =>
+        guard(async () => {
+          const result = await api('/unlock/reveal', {});
+          $('password-box').hidden = false;
+          $('password-value').textContent = result.password;
+          $('password-note').textContent =
+            `Shown once. Copy it within ${result.copyWindowMinutes} minutes — after that you would need a new request.`;
+        });
+
+      refresh();
+      setInterval(refresh, 30000);
+    </script>
+  </body>
+</html>

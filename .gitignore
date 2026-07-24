@@ -1,0 +1,8 @@
+node_modules/
+npm-debug.log*
+.DS_Store
+
+# Never commit local state: these hold the vault key, the lists and the log.
+*.enc.json
+key.bin
+.accountability-companion/
