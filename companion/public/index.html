@@ -197,8 +197,14 @@
             ? 'No session running. Start one with: companion start --hours 24'
             : 'Not set up yet. Run: companion setup';
         }
+        const reach = {
+          engines: 'on the supported search engines',
+          search: 'in any search box',
+          inputs: 'in any text field',
+        }[s.lists.keywordScope] || '';
         $('list-detail').textContent =
-          `${s.lists.blocklistCount} blocked domain(s), ${s.lists.keywordCount} flagged term(s). ` +
+          `${s.lists.blocklistCount} blocked domain(s). ` +
+          `${s.lists.keywordCount} blocked term(s), enforced ${reach}. ` +
           (s.passwordExists ? 'A vault password exists (encrypted, never displayed).' : 'No vault password yet.');
       }
 

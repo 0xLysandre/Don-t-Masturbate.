@@ -184,3 +184,38 @@ test('the data file on disk is not readable as plaintext', () => {
   assert.ok(!raw.includes('secret term'));
   assert.equal(JSON.parse(raw).alg, 'aes-256-gcm');
 });
+
+test('the term scope defaults to site-wide search boxes and is validated', () => {
+  const app = freshApp();
+  app.setup({ cooldownHours: 12 });
+  assert.equal(app.getConfig().keywordScope, 'search');
+
+  assert.equal(app.updateConfig({ keywordScope: 'inputs' }).keywordScope, 'inputs');
+  assert.equal(app.updateConfig({ keywordScope: 'ENGINES' }).keywordScope, 'engines');
+  assert.equal(app.status().lists.keywordScope, 'engines');
+  assert.throws(() => app.updateConfig({ keywordScope: 'everything' }), /must be one of/);
+  // The rejected value did not stick.
+  assert.equal(app.getConfig().keywordScope, 'engines');
+});
+
+test('the term scope is locked behind the password like the lists are', () => {
+  const app = freshApp();
+  app.setup({ cooldownHours: 0, keywordScope: 'inputs' });
+  app.startSession({ durationHours: 24 });
+  assert.throws(() => app.updateConfig({ keywordScope: 'engines' }), /password/i);
+  assert.equal(app.getConfig().keywordScope, 'inputs');
+
+  app.requestUnlock();
+  const { password } = app.revealPassword();
+  assert.equal(app.updateConfig({ keywordScope: 'engines', password }).keywordScope, 'engines');
+});
+
+test('a data file written before scopes existed still loads', () => {
+  const file = newFile();
+  const app = appAt(file);
+  app.setup({ cooldownHours: 12 });
+  delete app.state.keywordScope; // simulate an older state blob
+  app.save();
+
+  assert.equal(appAt(file).getConfig().keywordScope, 'search');
+});

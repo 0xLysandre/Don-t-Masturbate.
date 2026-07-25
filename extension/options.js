@@ -5,7 +5,13 @@ const $ = (id) => document.getElementById(id);
 
 let latest = { status: null, config: null };
 let keywordsRevealed = false;
-let listsDirty = { blocklist: false, keywords: false };
+let listsDirty = { blocklist: false, keywords: false, scope: false };
+
+const scopeInputs = () => document.querySelectorAll('input[name="scope"]');
+const selectedScope = () => {
+  for (const input of scopeInputs()) if (input.checked) return input.value;
+  return 'search';
+};
 
 async function api(path, body) {
   const res = await fetch(`${COMPANION_ORIGIN}${path}`, {
@@ -86,9 +92,19 @@ function renderSession(status) {
   }
 }
 
+const SCOPE_LABEL = {
+  engines: 'on the supported search engines',
+  search: 'in any search box',
+  inputs: 'in any text field',
+};
+
 function renderLists(config, active) {
   $('blocklist-count').textContent = `${config.blocklist.length} domain(s)`;
-  $('keyword-count').textContent = `${config.keywords.length} term(s)`;
+  $('keyword-count').textContent =
+    `${config.keywords.length} term(s), blocked ${SCOPE_LABEL[config.keywordScope] || ''}`;
+  if (!listsDirty.scope) {
+    for (const input of scopeInputs()) input.checked = input.value === config.keywordScope;
+  }
   if (!listsDirty.blocklist) $('blocklist').value = asLines(config.blocklist);
 
   const hideKeywords = active && !keywordsRevealed;
@@ -226,6 +242,9 @@ const editPassword = () => $('edit-password').value || undefined;
 
 $('blocklist').addEventListener('input', () => (listsDirty.blocklist = true));
 $('keywords').addEventListener('input', () => (listsDirty.keywords = true));
+for (const input of document.querySelectorAll('input[name="scope"]')) {
+  input.addEventListener('change', () => (listsDirty.scope = true));
+}
 
 $('blocklist-save').addEventListener('click', () =>
   guard('blocklist-status', async () => {
@@ -240,13 +259,19 @@ $('blocklist-save').addEventListener('click', () =>
 
 $('keywords-save').addEventListener('click', () =>
   guard('keywords-status', async () => {
-    if ($('keywords').hidden) throw new Error('Show the list before saving over it.');
+    // While the list is masked, only the reach can be changed — saving the
+    // empty textarea over a hidden list would wipe it.
+    const hidden = $('keywords').hidden;
     const result = await api('/config', {
-      keywords: fromLines($('keywords').value),
+      ...(hidden ? {} : { keywords: fromLines($('keywords').value) }),
+      keywordScope: selectedScope(),
       password: editPassword(),
     });
     listsDirty.keywords = false;
-    return `Saved ${result.keywords.length} term(s).`;
+    listsDirty.scope = false;
+    return hidden
+      ? `Terms now blocked ${SCOPE_LABEL[result.keywordScope]}. Show the list to edit the terms themselves.`
+      : `Saved ${result.keywords.length} term(s), blocked ${SCOPE_LABEL[result.keywordScope]}.`;
   }),
 );
 

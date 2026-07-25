@@ -186,6 +186,51 @@ label {
   margin-bottom: 0;
 }
 
+.choices {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.85rem 1rem 0.95rem;
+  margin: 0 0 0.9rem;
+}
+
+.choices legend {
+  font-size: 0.85rem;
+  color: var(--muted);
+  padding: 0 0.35rem;
+}
+
+.choice {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  margin: 0 0 0.55rem;
+  color: var(--ink);
+  font-size: inherit;
+  cursor: pointer;
+}
+
+.choice:last-child {
+  margin-bottom: 0;
+}
+
+.choice input {
+  width: auto;
+  margin-top: 0.28rem;
+  flex: none;
+}
+
+.choice strong {
+  display: block;
+  font-weight: 600;
+}
+
+.choice small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
 .pill {
   display: inline-block;
   padding: 0.15rem 0.6rem;

@@ -10,7 +10,8 @@ const { HOME, PORT } = require('../lib/paths');
 
 const USAGE = `Accountability companion
 
-  companion setup [--cooldown H] [--domains a.com,b.com] [--keywords "x,y"] [--no-examples]
+  companion setup [--cooldown H] [--domains a.com,b.com] [--terms "x,y"]
+                  [--scope engines|search|inputs] [--no-examples]
       First run. Generates and encrypts a random vault password (never shown).
 
   companion serve [--port N]
@@ -20,8 +21,15 @@ const USAGE = `Accountability companion
       Session, lists, unlock cooldown and streak at a glance.
 
   companion domains [list|add <d>...|remove <d>...] [--password P]
-  companion keywords [list|add <k>...|remove <k>...] [--password P]
-      Edit the lists. While a session is active, --password is required.
+  companion terms   [list|add <t>...|remove <t>...] [--password P]
+      Edit the lists ("keywords" also works for terms).
+      While a session is active, --password is required.
+
+  companion scope [engines|search|inputs] [--password P]
+      How far the blocked terms reach:
+        engines  the four supported search engines only
+        search   any site's search box and search URLs   (default)
+        inputs   as above, and they cannot be typed into any text field
 
   companion start --hours H [--password P]     Begin a locked session.
   companion stop --password P                  End it early (needs the password).
@@ -71,6 +79,12 @@ function ask(question) {
   return new Promise((resolve) => rl.question(question, (answer) => (rl.close(), resolve(answer))));
 }
 
+const SCOPE_LABEL = {
+  engines: 'on the supported search engines only',
+  search: 'in any search box, on any site',
+  inputs: 'in any text field, on any site',
+};
+
 function printStatus(app) {
   const s = app.status();
   const p = s.protection;
@@ -80,7 +94,9 @@ function printStatus(app) {
     `Protection     : ${p.active ? `ACTIVE — ${fmtDuration(p.remainingMs)} left (until ${p.endsAt})` : 'inactive'}`,
   );
   console.log(`Blocklist      : ${s.lists.blocklistCount} domain(s)`);
-  console.log(`Keywords       : ${s.lists.keywordCount} term(s)`);
+  console.log(
+    `Blocked terms  : ${s.lists.keywordCount} term(s), enforced ${SCOPE_LABEL[s.lists.keywordScope]}`,
+  );
   if (s.unlock.request) {
     const r = s.unlock.request;
     console.log(
@@ -96,12 +112,13 @@ function printStatus(app) {
 
 async function handleList(app, kind, positional, flags) {
   const key = kind === 'domains' ? 'blocklist' : 'keywords';
+  const label = kind === 'domains' ? 'domain(s)' : 'term(s)';
   const [action, ...rest] = positional;
   const items = rest.flatMap(splitList);
   const current = app.state[key];
 
   if (!action || action === 'list') {
-    if (current.length === 0) console.log(`(no ${kind} configured)`);
+    if (current.length === 0) console.log(`(no ${label} configured)`);
     else current.forEach((v) => console.log(`  ${v}`));
     return;
   }
@@ -114,7 +131,7 @@ async function handleList(app, kind, positional, flags) {
 
   const password = typeof flags.password === 'string' ? flags.password : undefined;
   const updated = app.updateConfig({ [key]: next, password });
-  console.log(`${kind}: ${updated[key].length} entr(y/ies) now stored.`);
+  console.log(`${updated[key].length} ${label} now stored.`);
 }
 
 async function main() {
@@ -138,7 +155,8 @@ async function main() {
       const result = app.setup({
         cooldownHours: flags.cooldown !== undefined ? Number(flags.cooldown) : undefined,
         blocklist: flags.domains ? splitList(flags.domains) : undefined,
-        keywords: flags.keywords ? splitList(flags.keywords) : undefined,
+        keywords: flags.terms || flags.keywords ? splitList(flags.terms || flags.keywords) : undefined,
+        keywordScope: typeof flags.scope === 'string' ? flags.scope : undefined,
         withExamples: !flags['no-examples'],
       });
       console.log('Setup complete.');
@@ -147,7 +165,10 @@ async function main() {
       console.log('  It has been encrypted at rest and is NOT displayed — not now, not on demand.');
       console.log(`  If you need it, request an unlock and wait out the ${result.cooldownHours}h cooldown.`);
       console.log('');
-      console.log(`  Blocklist: ${result.blocklistCount} domain(s)   Keywords: ${result.keywordCount} term(s)`);
+      console.log(`  Blocklist: ${result.blocklistCount} domain(s)`);
+      console.log(
+        `  Terms:     ${result.keywordCount} term(s), enforced ${SCOPE_LABEL[result.keywordScope]}`,
+      );
       console.log(`  Data directory: ${HOME}`);
       console.log('');
       console.log('Next: `companion start --hours 24`, then `companion serve`.');
@@ -157,9 +178,24 @@ async function main() {
       printStatus(app);
       return;
     case 'domains':
+    case 'terms':
     case 'keywords':
-      await handleList(app, command, positional, flags);
+      await handleList(app, command === 'domains' ? 'domains' : 'keywords', positional, flags);
       return;
+    case 'scope': {
+      const requested = positional[0];
+      if (!requested) {
+        console.log(`Blocked terms are enforced ${SCOPE_LABEL[app.state.keywordScope]}.`);
+        console.log('Change it with: companion scope [engines|search|inputs]');
+        return;
+      }
+      const updated = app.updateConfig({
+        keywordScope: requested,
+        password: typeof flags.password === 'string' ? flags.password : undefined,
+      });
+      console.log(`Blocked terms are now enforced ${SCOPE_LABEL[updated.keywordScope]}.`);
+      return;
+    }
     case 'start': {
       const result = app.startSession({
         durationHours: Number(flags.hours),

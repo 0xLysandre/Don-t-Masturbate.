@@ -10,6 +10,19 @@ const { dateKey, currentStreak, longestStreak } = require('./streak');
 // closed tab or a fumbled copy/paste does not cost another full cooldown.
 const REVEAL_WINDOW_MINUTES = 10;
 
+/**
+ * How far the blocked-term list reaches, narrowest first.
+ *
+ *   engines  the four supported search engines only
+ *   search   search boxes on any site, plus any site's search-style URL
+ *   inputs   as above, and the terms cannot be typed into any text field
+ *
+ * All three are enforced by content scripts reading page inputs. None of them
+ * involve system-wide or OS-level keystroke capture; nothing outside a browser
+ * tab is ever observed.
+ */
+const KEYWORD_SCOPES = ['engines', 'search', 'inputs'];
+
 function fail(message, status = 400, code = 'error') {
   const err = new Error(message);
   err.status = status;
@@ -109,7 +122,7 @@ class App {
 
   // ------------------------------------------------------------------ setup
 
-  setup({ cooldownHours, blocklist, keywords, withExamples = true } = {}) {
+  setup({ cooldownHours, blocklist, keywords, keywordScope, withExamples = true } = {}) {
     if (this.state.setupComplete && this.sessionActive()) {
       throw fail('Setup has already run and a session is active.', 409, 'already_setup');
     }
@@ -118,6 +131,7 @@ class App {
     if (blocklist) this.state.blocklist = cleanDomains(blocklist);
     else if (withExamples && this.state.blocklist.length === 0)
       this.state.blocklist = [...EXAMPLE_BLOCKLIST];
+    if (keywordScope !== undefined) this.state.keywordScope = this.#coerceScope(keywordScope);
     if (keywords) this.state.keywords = cleanList(keywords);
     else if (withExamples && this.state.keywords.length === 0)
       this.state.keywords = [...EXAMPLE_KEYWORDS];
@@ -130,7 +144,16 @@ class App {
       cooldownHours: this.state.cooldownHours,
       blocklistCount: this.state.blocklist.length,
       keywordCount: this.state.keywords.length,
+      keywordScope: this.state.keywordScope,
     };
+  }
+
+  #coerceScope(scope) {
+    const value = String(scope).trim().toLowerCase();
+    if (!KEYWORD_SCOPES.includes(value)) {
+      throw fail(`Term scope must be one of: ${KEYWORD_SCOPES.join(', ')}.`);
+    }
+    return value;
   }
 
   #coerceCooldown(hours) {
@@ -168,14 +191,16 @@ class App {
       cooldownHours: this.state.cooldownHours,
       blocklist: this.state.blocklist,
       keywords: this.state.keywords,
+      keywordScope: this.state.keywordScope,
       updatedAt: new Date().toISOString(),
     };
   }
 
-  updateConfig({ blocklist, keywords, cooldownHours, password } = {}) {
+  updateConfig({ blocklist, keywords, keywordScope, cooldownHours, password } = {}) {
     this.requireAuthority(password);
     if (blocklist !== undefined) this.state.blocklist = cleanDomains(blocklist);
     if (keywords !== undefined) this.state.keywords = cleanList(keywords);
+    if (keywordScope !== undefined) this.state.keywordScope = this.#coerceScope(keywordScope);
     if (cooldownHours !== undefined) this.state.cooldownHours = this.#coerceCooldown(cooldownHours);
     this.save();
     return this.getConfig();
@@ -401,6 +426,7 @@ class App {
       lists: {
         blocklistCount: this.state.blocklist.length,
         keywordCount: this.state.keywords.length,
+        keywordScope: this.state.keywordScope,
       },
       unlock: this.unlockStatus(),
       checkin: this.checkInSummary(7),
@@ -408,4 +434,12 @@ class App {
   }
 }
 
-module.exports = { App, fail, normaliseDomain, cleanList, cleanDomains, REVEAL_WINDOW_MINUTES };
+module.exports = {
+  App,
+  fail,
+  normaliseDomain,
+  cleanList,
+  cleanDomains,
+  KEYWORD_SCOPES,
+  REVEAL_WINDOW_MINUTES,
+};

@@ -20,9 +20,9 @@ telemetry, and no network calls beyond `127.0.0.1`.
   ┌──────────────────────────────┐        http://127.0.0.1:7373       ┌────────────────────────┐
   │ Chrome extension             │ ─────────── loopback only ───────▶ │ companion (Node.js)    │
   │                              │                                    │                        │
-  │ declarativeNetRequest ─▶ domains                                   │ blocklist + keywords   │
-  │ content script ───────▶ search boxes                               │ time-locked vault      │
-  │ webNavigation ────────▶ ?q= backstop                               │ check-ins & streaks    │
+  │ declarativeNetRequest ─▶ domains                                   │ blocklist + terms      │
+  │ content script ───────▶ text fields                                │ time-locked vault      │
+  │ webNavigation ────────▶ query backstop                             │ check-ins & streaks    │
   └──────────────────────────────┘                                    │ AES-256-GCM at rest    │
                                                                       └────────────────────────┘
 ```
@@ -35,13 +35,50 @@ Three independent layers do the blocking:
 
 1. **Domains** — `declarativeNetRequest` dynamic rules redirect any request to a
    blocklisted domain (and its subdomains) to a local blocked page.
-2. **Search boxes** — a content script on Google, Bing, DuckDuckGo and YouTube
-   watches the search field, debounced at 250 ms, and checks Enter and form
-   submission synchronously so a match never gets sent.
-3. **Search URLs** — `webNavigation.onBeforeNavigate` (and
-   `onHistoryStateUpdated`, for YouTube's SPA navigation) inspects the `q=` /
-   `search_query=` / `search=` parameter of any navigation to those engines.
-   This catches a pasted URL, where no content script has run yet.
+2. **Text fields** — a content script watches search boxes, debounced at 250 ms,
+   and checks Enter and form submission synchronously so a match never gets
+   sent. At the strongest reach it also refuses the keystroke that would
+   complete a blocked term, in any field.
+3. **URLs** — `webNavigation.onBeforeNavigate` (and `onHistoryStateUpdated`, for
+   YouTube's SPA navigation) inspects query parameters before the request goes
+   out. This catches a pasted search URL, where no content script has run yet.
+
+---
+
+## Blocked terms
+
+Terms you add to the list cannot be searched for. How far that reaches is up to
+you — set it in the options page, or with `companion scope`:
+
+| Reach                     | What it covers                                                                                                                    |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `engines`                 | Google, Bing, DuckDuckGo and YouTube only. Every other site is untouched.                                                          |
+| `search` *(default)*      | The above, plus the search box on any site, plus any site's search URL (`?s=`, `?keyword=`, `?query=` …).                          |
+| `inputs`                  | The above, plus the keystroke that would complete a blocked term is refused in **any** text field. Strongest, most likely to nag.  |
+
+At `inputs` reach the term is stopped before it lands rather than deleted after
+the fact — `beforeinput` is cancelled, which covers typing, pasting and dropping
+alike — so an unrelated draft is never mangled. A small toast says what happened,
+because a silently dead keyboard just reads as a broken site.
+
+Matching is plain substring, after lowercasing and stripping punctuation and
+accents: `badword` catches `BadWord`, `bàd-wörd` and `xbadwordy`. There is no
+classifier and no API call. Substring matching means broad terms will over-match
+— that is the tradeoff you are choosing when you pick a short term.
+
+```bash
+node bin/cli.js terms add "some phrase" "another term"
+node bin/cli.js terms list
+node bin/cli.js scope inputs
+```
+
+**What is and is not watched.** The content script reads the contents of page
+text fields, and nothing else: only inside a browser tab, only while a session
+is running, and only to compare against your own list. Nothing typed is stored,
+logged or sent anywhere. There is no OS-level or system-wide keystroke capture
+of any kind, and the address bar cannot be read by an extension at all — so a
+term typed straight into the omnibox is caught by the URL layer once you hit
+enter, not before.
 
 ---
 
@@ -63,9 +100,10 @@ hours you must wait after asking for it before it is released.
 Add what you want blocked:
 
 ```bash
-node bin/cli.js domains  add example.com another-site.net
-node bin/cli.js keywords add "some phrase" "another term"
-node bin/cli.js domains  list
+node bin/cli.js domains add example.com another-site.net
+node bin/cli.js terms   add "some phrase" "another term"
+node bin/cli.js scope   search              # engines | search | inputs
+node bin/cli.js domains list
 ```
 
 ### 2. Start the local server
@@ -182,9 +220,9 @@ determined attacker, and the determined attacker here is you:
 
 ## Scope
 
-**In:** Chrome MV3 only; manual domain blocklist; keyword matching on Google,
-Bing, DuckDuckGo and YouTube; a time-locked password vault; a yes/no check-in
-with streaks; local-only encrypted storage.
+**In:** Chrome MV3 only; manual domain blocklist; blocked terms enforced on the
+supported engines, in any site's search box, or in any text field; a time-locked
+password vault; a yes/no check-in with streaks; local-only encrypted storage.
 
 **Deliberately not built:** OS-level or system-wide keystroke logging of any
 kind; omnibox/address-bar monitoring (extensions cannot read it, and no
@@ -193,9 +231,9 @@ tamper resistance or anti-uninstall; friend-held password recovery; any
 AI/LLM-based classification (matching is plain substrings); any conversational
 "buddy" chat.
 
-The content script reads **only** the value of a search field, **only** on the
-search-engine pages listed in `manifest.json`. It touches no other input, page,
-or field.
+The content script reads **only** the contents of page text fields, **only**
+while a session is running, and only as far as the reach you chose. Nothing
+outside a browser tab is ever observed.
 
 ---
 
@@ -208,9 +246,10 @@ npm test          # node --test, no dependencies
 
 Covers the streak rules (including reset on a missed day), the time-lock
 (request reveals nothing, cooldown blocks the reveal, password rotation voids
-old ones), the password-required-while-locked rule, the search-URL backstop for
-every supported engine, the CORS origin policy, and that neither the state file
-nor any API response contains the plaintext password.
+old ones), the password-required-while-locked rule, term-scope validation and
+migration of older data files, the URL backstop for every supported engine and
+for arbitrary sites, the CORS origin policy, and that neither the state file nor
+any API response contains the plaintext password.
 
 ### Layout
 
@@ -218,7 +257,7 @@ nor any API response contains the plaintext password.
 extension/
   manifest.json        MV3 manifest
   background.js        companion sync, DNR rules, webNavigation backstop
-  content-script.js    search-box listener
+  content-script.js    search-box and text-field guard
   shared/matcher.js    keyword + search-URL matching (shared by both)
   options.html/.js     lists, session, unlock, check-in
   blocked.html/.js     the local blocked page
@@ -234,9 +273,11 @@ companion/
 
 ### Adding a search engine
 
-Add a `test`/`params` entry to `ENGINES` in `extension/shared/matcher.js` (that
-alone enables the navigation backstop everywhere), then add the host to
-`content_scripts.matches` in `manifest.json` for in-page typing detection.
+The content script runs on all `http`/`https` pages — it has to, since the term
+list can be enforced site-wide — and bails out immediately unless a session is
+running and the configured reach covers the page. So a new engine only needs a
+`test`/`params` entry in `ENGINES` in `extension/shared/matcher.js`, which gives
+it engine-level treatment even at the narrowest reach.
 
 ## Licence
 

@@ -66,3 +66,46 @@ test('a flagged term on an unsupported host is ignored by the backstop', () => {
 test('terms hidden in the URL fragment are still caught', () => {
   assert.equal(matchUrl('https://duckduckgo.com/?t=h_#q=badword', KEYWORDS), 'badword');
 });
+
+// --------------------------------------------------------------- site-wide
+
+const { matchAnyUrl, queriesFromAnyUrl, scopeAtLeast } = globalThis.AccMatcher;
+
+test('the site-wide backstop reads any query parameter on any host', () => {
+  const urls = [
+    'https://some-forum.example/search?s=badword',
+    'https://shop.example/products?keyword=BADWORD&page=2',
+    'https://wiki.example/index.php?title=x&search=a+flagged+phrase',
+    'https://app.example/#/results?term=badword',
+  ];
+  for (const url of urls) assert.ok(matchAnyUrl(url, KEYWORDS), `${url} should be blocked`);
+});
+
+test('the site-wide backstop ignores the path, to keep false positives down', () => {
+  // An article slug containing the term is somebody else's page, not a search.
+  assert.equal(matchAnyUrl('https://news.example/2026/badword-explained', KEYWORDS), null);
+  assert.equal(matchAnyUrl('https://news.example/ok?ref=newsletter', KEYWORDS), null);
+});
+
+test('the site-wide backstop leaves non-web URLs alone', () => {
+  assert.deepEqual(queriesFromAnyUrl('chrome-extension://abc/blocked.html?reason=search'), []);
+  assert.equal(matchAnyUrl('chrome-extension://abc/blocked.html?q=badword', KEYWORDS), null);
+  assert.equal(matchAnyUrl('about:blank', KEYWORDS), null);
+});
+
+test('a bare fragment is treated as a query too', () => {
+  assert.equal(matchAnyUrl('https://app.example/page#badword', KEYWORDS), 'badword');
+});
+
+test('scope ordering decides how far the list reaches', () => {
+  assert.equal(scopeAtLeast('engines', 'engines'), true);
+  assert.equal(scopeAtLeast('engines', 'search'), false);
+  assert.equal(scopeAtLeast('engines', 'inputs'), false);
+  assert.equal(scopeAtLeast('search', 'search'), true);
+  assert.equal(scopeAtLeast('search', 'inputs'), false);
+  assert.equal(scopeAtLeast('inputs', 'inputs'), true);
+  // An unknown or missing scope falls back to the default, never to "off".
+  assert.equal(scopeAtLeast(undefined, 'search'), true);
+  assert.equal(scopeAtLeast('nonsense', 'search'), true);
+  assert.equal(scopeAtLeast('nonsense', 'inputs'), false);
+});

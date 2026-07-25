@@ -26,6 +26,7 @@ const EMPTY_STATE = {
   endsAt: null,
   blocklist: [],
   keywords: [],
+  keywordScope: 'search',
   setupComplete: false,
 };
 
@@ -86,6 +87,7 @@ async function sync() {
       endsAt: config.session ? config.session.endsAt : null,
       blocklist: config.blocklist || [],
       keywords: config.keywords || [],
+      keywordScope: config.keywordScope || 'search',
     });
     await applyRules(state);
     await updateBadge(state);
@@ -148,7 +150,12 @@ async function updateBadge(state) {
     text = 'ON';
     color = '#1a7f4b';
     const ends = state.endsAt ? new Date(state.endsAt).toLocaleString() : 'unknown';
-    title = `Protection active until ${ends}\n${state.blocklist.length} domain(s), ${state.keywords.length} term(s)`;
+    const reach = {
+      engines: 'on the supported search engines',
+      search: 'in any search box',
+      inputs: 'in any text field',
+    }[state.keywordScope || 'search'];
+    title = `Protection active until ${ends}\n${state.blocklist.length} domain(s) blocked, ${state.keywords.length} term(s) blocked ${reach}`;
   } else {
     text = 'OFF';
     color = '#a15c07';
@@ -166,18 +173,37 @@ async function updateBadge(state) {
  * Backstop for search queries. Runs before the request is made, so a pasted
  * `?q=` URL never reaches the search engine even though no content script had
  * a chance to see it typed.
+ *
+ * On the supported engines this always applies. Beyond them it applies only
+ * once the term scope reaches site-wide, and then it inspects every query
+ * parameter, so a small site's own `?s=` search is caught as well.
  */
 async function inspectNavigation(details) {
   if (details.frameId !== 0) return;
   const state = await getState();
   if (!state.protectionActive || state.keywords.length === 0) return;
+
   const engine = AccMatcher.engineForUrl(details.url);
-  if (!engine) return;
-  if (!AccMatcher.matchUrl(details.url, state.keywords)) return;
+  const siteWide = AccMatcher.scopeAtLeast(state.keywordScope, 'search');
+  if (!engine && !siteWide) return;
+
+  const hit = engine
+    ? AccMatcher.matchUrl(details.url, state.keywords)
+    : AccMatcher.matchAnyUrl(details.url, state.keywords);
+  if (!hit) return;
+
   // The matched term is deliberately not echoed into the blocked page.
+  let label = engine ? engine.name : '';
+  if (!label) {
+    try {
+      label = new URL(details.url).hostname;
+    } catch {
+      label = '';
+    }
+  }
   try {
     await chrome.tabs.update(details.tabId, {
-      url: blockedUrl({ reason: 'search', engine: engine.name, via: 'navigation' }),
+      url: blockedUrl({ reason: 'search', engine: label, via: 'navigation' }),
     });
   } catch {
     /* tab closed mid-navigation */

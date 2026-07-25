@@ -19,6 +19,8 @@ function defaultState() {
     cooldownHours: 12,
     blocklist: [],
     keywords: [],
+    // How far the term list reaches: see KEYWORD_SCOPES in app.js.
+    keywordScope: 'search',
     session: { active: false, startedAt: null, endsAt: null, endedAt: null, endedReason: null },
     // vault.secret holds the AES-GCM envelope for the password. It is kept as
     // ciphertext even in memory so a stray JSON.stringify of the state can

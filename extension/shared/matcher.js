@@ -84,7 +84,35 @@
     return found;
   }
 
-  /** Backstop check for a navigation URL. Returns the matched keyword or null. */
+  /**
+   * Every query value carried by any URL, whether or not the host is a known
+   * engine. Used when the term list is enforced site-wide, so a small site's
+   * own `?s=` or `?keyword=` search is caught too.
+   *
+   * Only query and fragment parameters are read — never the path. A term in a
+   * path is usually somebody else's article slug, and blocking on it produces
+   * far more false positives than it prevents.
+   */
+  function queriesFromAnyUrl(url) {
+    let parsed;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return [];
+    }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return [];
+    const found = [];
+    for (const [, value] of parsed.searchParams) if (value) found.push(value);
+    if (parsed.hash && parsed.hash.length > 1) {
+      const hash = parsed.hash.slice(1);
+      for (const [, value] of new URLSearchParams(hash)) if (value) found.push(value);
+      // A bare fragment such as #some-term carries no "=" to parse.
+      if (!hash.includes('=')) found.push(hash);
+    }
+    return found;
+  }
+
+  /** Backstop check for a search-engine navigation. Returns the term or null. */
   function matchUrl(url, keywords) {
     for (const query of queriesFromUrl(url)) {
       const hit = matchKeyword(query, keywords);
@@ -93,13 +121,32 @@
     return null;
   }
 
+  /** Backstop check for a navigation to any site at all. */
+  function matchAnyUrl(url, keywords) {
+    for (const query of queriesFromAnyUrl(url)) {
+      const hit = matchKeyword(query, keywords);
+      if (hit) return hit;
+    }
+    return null;
+  }
+
+  // How far the term list reaches. Ordered from narrowest to widest.
+  const SCOPES = ['engines', 'search', 'inputs'];
+
+  const scopeAtLeast = (scope, minimum) =>
+    SCOPES.indexOf(SCOPES.includes(scope) ? scope : 'search') >= SCOPES.indexOf(minimum);
+
   global.AccMatcher = {
     normalise,
     matchKeyword,
     engineForHost,
     engineForUrl,
     queriesFromUrl,
+    queriesFromAnyUrl,
     matchUrl,
+    matchAnyUrl,
+    scopeAtLeast,
+    SCOPES,
     ENGINES,
   };
 })(typeof self !== 'undefined' ? self : globalThis);

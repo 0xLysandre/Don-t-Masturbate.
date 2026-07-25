@@ -20,23 +20,7 @@
   },
   "content_scripts": [
     {
-      "matches": [
-        "*://*.google.com/*",
-        "*://*.google.co.uk/*",
-        "*://*.google.ca/*",
-        "*://*.google.com.au/*",
-        "*://*.google.de/*",
-        "*://*.google.fr/*",
-        "*://*.google.es/*",
-        "*://*.google.it/*",
-        "*://*.google.nl/*",
-        "*://*.google.pl/*",
-        "*://*.google.co.in/*",
-        "*://*.google.com.br/*",
-        "*://*.bing.com/*",
-        "*://*.duckduckgo.com/*",
-        "*://*.youtube.com/*"
-      ],
+      "matches": ["http://*/*", "https://*/*"],
       "js": ["shared/matcher.js", "content-script.js"],
       "run_at": "document_start",
       "all_frames": false

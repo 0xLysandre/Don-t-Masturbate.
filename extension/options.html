@@ -75,12 +75,12 @@
 
       <section>
         <div class="spread">
-          <h2>Flagged search terms</h2>
+          <h2>Blocked terms</h2>
           <span class="status-line" id="keyword-count"></span>
         </div>
         <p class="muted">
-          Matched as plain substrings against what you type into Google, Bing, DuckDuckGo and
-          YouTube search, and against search URLs you open directly.
+          Terms you cannot search for. Matched as plain substrings, ignoring case, punctuation and
+          accents.
         </p>
         <div class="field">
           <label for="keywords">One term per line.</label>
@@ -91,10 +91,49 @@
             <button id="keywords-reveal" style="margin-left: 0.5rem">Show anyway</button>
           </div>
         </div>
+
+        <fieldset class="choices">
+          <legend>How far these terms reach</legend>
+          <label class="choice">
+            <input type="radio" name="scope" value="engines" />
+            <span>
+              <strong>Search engines only</strong>
+              <small
+                >Google, Bing, DuckDuckGo and YouTube. Every other site is left completely
+                alone.</small
+              >
+            </span>
+          </label>
+          <label class="choice">
+            <input type="radio" name="scope" value="search" />
+            <span>
+              <strong>Any search box</strong>
+              <small
+                >The engines above, plus the search box on any other site, plus search URLs you
+                open directly. Ordinary text fields are untouched.</small
+              >
+            </span>
+          </label>
+          <label class="choice">
+            <input type="radio" name="scope" value="inputs" />
+            <span>
+              <strong>Cannot be typed at all</strong>
+              <small
+                >As above, and the keystroke that would complete a blocked term is refused in any
+                text field, anywhere. Strongest, and the most likely to get in your way.</small
+              >
+            </span>
+          </label>
+        </fieldset>
+
         <div class="row">
-          <button class="primary" id="keywords-save">Save terms</button>
+          <button class="primary" id="keywords-save">Save terms &amp; reach</button>
           <span class="status-line" id="keywords-status"></span>
         </div>
+        <p class="fine">
+          Only page text fields are ever read, and only while a session is running. Nothing outside
+          the browser is monitored, and nothing typed is stored or sent anywhere.
+        </p>
       </section>
 
       <section id="locked-note" hidden>
