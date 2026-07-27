@@ -39,11 +39,25 @@ class Store {
   constructor(file = DATA_FILE) {
     this.file = file;
     this.key = loadKey();
+    this.stamp = null;
     this.state = this.load();
   }
 
+  /** Identity of the file as we last saw it, for detecting outside writes. */
+  #stampNow() {
+    try {
+      const stat = fs.statSync(this.file);
+      return `${stat.mtimeMs}:${stat.size}:${stat.ino}`;
+    } catch {
+      return null;
+    }
+  }
+
   load() {
-    if (!fs.existsSync(this.file)) return defaultState();
+    if (!fs.existsSync(this.file)) {
+      this.stamp = null;
+      return defaultState();
+    }
     const raw = fs.readFileSync(this.file, 'utf8');
     let envelope;
     try {
@@ -52,7 +66,26 @@ class Store {
       throw new Error(`Data file ${this.file} is not valid JSON.`);
     }
     const state = JSON.parse(decrypt(envelope, this.key));
+    this.stamp = this.#stampNow();
     return { ...defaultState(), ...state };
+  }
+
+  /**
+   * Pick up a write made by another process.
+   *
+   * The long-running server and the CLI both hold a Store over the same file —
+   * on a machine where the companion runs as a user service, that is the
+   * normal case, not an edge case. Without this the server would happily
+   * overwrite a `companion terms add` with its own stale copy. Two writes
+   * landing in the same millisecond can still race; for a single-user local
+   * tool, reloading before each request closes the window that actually
+   * matters.
+   */
+  reloadIfChanged() {
+    const current = this.#stampNow();
+    if (current === this.stamp) return false;
+    this.state = this.load();
+    return true;
   }
 
   save() {
@@ -61,6 +94,7 @@ class Store {
     const tmp = path.join(path.dirname(this.file), `.${path.basename(this.file)}.tmp`);
     fs.writeFileSync(tmp, JSON.stringify(envelope), { mode: 0o600 });
     fs.renameSync(tmp, this.file);
+    this.stamp = this.#stampNow();
     return this.state;
   }
 

@@ -131,6 +131,9 @@ function createServer({ app = new App(), log = console.log } = {}) {
 
     try {
       const body = req.method === 'POST' ? await readBody(req) : {};
+      // The CLI may have written since the last request; never answer, and
+      // never save, from a stale copy.
+      app.store.reloadIfChanged();
       send(200, handler(body));
     } catch (err) {
       const status = err.status || 500;

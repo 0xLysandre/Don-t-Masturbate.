@@ -145,3 +145,19 @@ test('unknown routes 404 rather than falling through', async (t) => {
   const missing = await call('/does-not-exist');
   assert.equal(missing.status, 404);
 });
+
+test('the running server sees a change written by the CLI', async (t) => {
+  const file = path.join(HOME, 'server-f.enc.json');
+  const app = new App(new Store(file));
+  const { server, call } = await listen(app);
+  t.after(() => server.close());
+
+  await call('/setup', { body: { cooldownHours: 12 } });
+  await call('/config', { body: { keywords: ['from the api'] } });
+
+  // A separate process — the CLI — edits the same file underneath it.
+  new App(new Store(file)).updateConfig({ keywords: ['from the cli'] });
+
+  const config = await call('/config');
+  assert.deepEqual(config.data.keywords, ['from the cli']);
+});

@@ -84,7 +84,8 @@ enter, not before.
 
 ## Setup
 
-Requires Node.js 18 or newer. No npm dependencies.
+Requires Node.js 18 or newer. No npm dependencies. On NixOS, skip to
+[NixOS](#nixos) — the flake and modules do the wiring for you.
 
 ### 1. Set up the companion
 
@@ -179,9 +180,109 @@ ever reached is kept alongside the current one.
 
 ---
 
+## NixOS
+
+The companion has no npm dependencies, so the flake is small and there is
+nothing to vendor.
+
+### Flake
+
+```nix
+{
+  inputs.accountability.url = "github:0xLysandre/Don-t-Masturbate";
+
+  # NixOS: a per-user systemd service, started on login.
+  outputs = { nixpkgs, accountability, ... }: {
+    nixosConfigurations.yourhost = nixpkgs.lib.nixosSystem {
+      modules = [
+        accountability.nixosModules.default
+        { services.accountability-companion.enable = true; }
+      ];
+    };
+  };
+}
+```
+
+With home-manager instead:
+
+```nix
+{
+  imports = [ accountability.homeManagerModules.default ];
+  services.accountability-companion.enable = true;
+}
+```
+
+Either module runs `accountability-companion serve` as a **user** service with
+`Restart=always`. That matters more than convenience: the extension shows a red
+"protection inactive" badge whenever the companion is unreachable, so a
+companion you have to remember to start by hand is one that will not be running
+on the evening you needed it.
+
+Neither module runs setup for you — the vault is per-user state, not something
+a system rebuild should generate. After the first rebuild:
+
+```bash
+accountability-companion setup --cooldown 12
+accountability-companion terms add "some phrase"
+accountability-companion start --hours 24
+```
+
+### Just trying it
+
+```bash
+nix run github:0xLysandre/Don-t-Masturbate -- setup --cooldown 12
+nix run github:0xLysandre/Don-t-Masturbate -- serve
+nix develop      # node in scope, for hacking on it
+nix flake check  # builds the package, which runs the test suite
+```
+
+Without flakes, `nix-build` and `nix-shell` work from the repo root.
+
+### Loading the extension
+
+Chrome cannot install an unpacked extension declaratively — there is no policy
+for it, so this step stays manual. What Nix gives you is a path that does not
+change when the package does:
+
+| Installed via  | Path to give to *Load unpacked*                                     |
+| -------------- | ------------------------------------------------------------------- |
+| NixOS module   | `/run/current-system/sw/share/accountability-blocker/extension`      |
+| home-manager   | `~/.local/share/accountability-blocker/extension`                    |
+| `nix profile`  | `~/.nix-profile/share/accountability-blocker/extension`              |
+
+`accountability-companion paths` prints the right one for your install, along
+with the data directory and the port.
+
+Those paths are symlinks into the store, so the target changes when you rebuild.
+Chrome keeps working, but reload the extension (or restart Chrome) after an
+update so it picks up the new files.
+
+### Changing the port
+
+The extension talks to a fixed loopback port, so both halves have to agree.
+Override the package rather than the service:
+
+```nix
+services.accountability-companion.package =
+  pkgs.callPackage "${inputs.accountability}/nix/package.nix" { port = 7400; };
+```
+
+That rewrites the port in the extension sources and sets the companion's
+default, so the two stay in step.
+
+### Data location
+
+State goes to `$XDG_STATE_HOME/accountability-companion` (in practice
+`~/.local/state/accountability-companion`). An existing
+`~/.accountability-companion` from before this change keeps being used, so
+upgrading does not strand your vault. `ACCOUNTABILITY_HOME` overrides both.
+
+---
+
 ## Data and encryption
 
-Everything lives in `~/.accountability-companion/` (override with
+Everything lives in `~/.local/state/accountability-companion/` (or the legacy
+`~/.accountability-companion/` if you already have one; override either with
 `ACCOUNTABILITY_HOME`):
 
 - `key.bin` — 32-byte random master key, mode `0600`.
@@ -244,6 +345,9 @@ cd companion
 npm test          # node --test, no dependencies
 ```
 
+Or `nix develop` for a shell with Node, and `nix flake check` to build the
+package (which runs the same suite in the sandbox).
+
 Covers the streak rules (including reset on a missed day), the time-lock
 (request reveals nothing, cooldown blocks the reveal, password rotation voids
 old ones), the password-required-while-locked rule, term-scope validation and
@@ -262,13 +366,18 @@ extension/
   options.html/.js     lists, session, unlock, check-in
   blocked.html/.js     the local blocked page
 companion/
-  bin/cli.js           setup, serve, status, lists, session, unlock, checkin
+  bin/cli.js           setup, serve, status, lists, session, unlock, checkin, paths
   lib/app.js           all operations and the locking rules
   lib/secure.js        encryption, password generation, constant-time compare
   lib/store.js         encrypted, atomic persistence
   lib/server.js        loopback HTTP API + dashboard
   lib/streak.js        streak arithmetic
   public/index.html    dashboard
+nix/
+  package.nix          derivation (no npm deps; runs the tests in checkPhase)
+  nixos-module.nix     services.accountability-companion, user systemd service
+  home-manager-module.nix  same, plus a stable extension symlink
+flake.nix              packages, apps, devShells, checks, both modules
 ```
 
 ### Adding a search engine

@@ -6,3 +6,8 @@ npm-debug.log*
 *.enc.json
 key.bin
 .accountability-companion/
+
+# Nix build outputs
+result
+result-*
+.direnv/

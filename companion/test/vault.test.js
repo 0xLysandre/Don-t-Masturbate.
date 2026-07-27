@@ -219,3 +219,23 @@ test('a data file written before scopes existed still loads', () => {
 
   assert.equal(appAt(file).getConfig().keywordScope, 'search');
 });
+
+test('a store picks up a write made by another process', () => {
+  // The server runs as a user service while the CLI writes to the same file;
+  // without a reload the server would overwrite the CLI's change.
+  const file = newFile();
+  const server = appAt(file);
+  server.setup({ cooldownHours: 12, keywords: ['first'] });
+
+  const cli = appAt(file);
+  cli.updateConfig({ keywords: ['second'] });
+
+  assert.deepEqual(server.state.keywords, ['first'], 'stale copy still in memory');
+  assert.equal(server.store.reloadIfChanged(), true);
+  assert.deepEqual(server.state.keywords, ['second']);
+  assert.equal(server.store.reloadIfChanged(), false, 'no reload when nothing changed');
+
+  // And a save from the reloaded server does not resurrect the old list.
+  server.checkIn({ onTrack: true });
+  assert.deepEqual(appAt(file).state.keywords, ['second']);
+});

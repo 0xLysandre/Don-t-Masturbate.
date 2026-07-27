@@ -6,7 +6,13 @@ const readline = require('node:readline');
 const { App } = require('../lib/app');
 const { Store } = require('../lib/store');
 const { start } = require('../lib/server');
-const { HOME, PORT } = require('../lib/paths');
+const { HOME, PORT, LEGACY_DIR } = require('../lib/paths');
+const path = require('node:path');
+const fs = require('node:fs');
+
+// Repo layout and installed layout both put the extension one level up from
+// the companion, so this resolves in a checkout and in a Nix store path alike.
+const EXTENSION_DIR = path.resolve(__dirname, '..', '..', 'extension');
 
 const USAGE = `Accountability companion
 
@@ -41,6 +47,10 @@ const USAGE = `Accountability companion
   companion unlock history                     Every request you have ever made.
 
   companion checkin [yes|no]                   Daily check-in + streak.
+
+  companion paths
+      Where the data, the extension and the server are — handy when the
+      companion was installed by Nix and lives in the store.
 
 Data lives in ${HOME} (encrypted at rest). Nothing leaves this machine.`;
 
@@ -146,6 +156,23 @@ async function main() {
   if (command === 'serve') {
     await start({ port: flags.port ? Number(flags.port) : PORT });
     return; // keep the process alive
+  }
+
+  if (command === 'paths') {
+    const hasExtension = fs.existsSync(path.join(EXTENSION_DIR, 'manifest.json'));
+    console.log(`Data directory : ${HOME}`);
+    console.log(`Server         : http://127.0.0.1:${PORT}`);
+    console.log(
+      `Extension      : ${EXTENSION_DIR}${hasExtension ? '' : '  (not found — load it from the repo)'}`,
+    );
+    console.log('');
+    console.log('Load the extension with chrome://extensions -> Developer mode -> Load unpacked,');
+    console.log('and point it at the extension path above.');
+    if (HOME === LEGACY_DIR) {
+      console.log('');
+      console.log(`Note: using the pre-XDG data directory ${LEGACY_DIR} because it already exists.`);
+    }
+    return;
   }
 
   const app = new App(new Store());
