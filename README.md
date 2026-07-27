@@ -158,7 +158,11 @@ node bin/cli.js stop --password <the revealed password>
 - Requesting reveals nothing. It starts the clock you configured.
 - Once revealed, the password stays viewable for 10 minutes, then seals. If you
   need it again after that, request a new unlock and wait again.
-- Starting a new session rotates the password, so an old reveal is worthless.
+- Starting a new session (or re-running setup) generates a new password **and
+  closes the request that revealed the old one**. Requests are tagged with the
+  password they were made against, so a reveal can never carry over: committing
+  to a new session always costs a fresh request and a fresh cooldown, even if
+  you revealed one a minute ago.
 - Every request is timestamped and listed in the options page and dashboard.
   Seeing your own pattern of requests is part of the point.
 

@@ -229,6 +229,12 @@
         const reveal = $('unlock-reveal');
         const cancel = $('unlock-cancel');
         const request = $('unlock-request');
+        // Never leave a password on screen once its request has closed.
+        if (!req || !req.revealable) {
+          $('password-box').hidden = true;
+          $('password-value').textContent = '';
+          $('password-note').textContent = '';
+        }
         if (!req) {
           $('unlock-state').textContent = status.active
             ? 'No unlock requested.'

@@ -164,19 +164,33 @@ class App {
     return n;
   }
 
+  /**
+   * Which password the vault is on. Requests are tagged with it, so a request
+   * can never outlive the password it was made against. State written before
+   * this field existed reads as generation 0 and is retired by the next
+   * rotation.
+   */
+  #vaultGeneration() {
+    return this.state.vault.generation ?? 0;
+  }
+
   #rotatePassword(reason) {
     const now = new Date().toISOString();
     this.state.vault.secret = encrypt(generatePassword(), this.store.key);
     this.state.vault.createdAt = this.state.vault.createdAt || now;
     this.state.vault.rotatedAt = now;
     this.state.vault.rotationReason = reason;
-    // A pending unlock request is about the *old* password; it cannot survive.
+    this.state.vault.generation = this.#vaultGeneration() + 1;
+
+    // Every open request was made against the password that just died —
+    // including one already revealed. Leaving a revealed request open would
+    // let its copy window carry over to the new password, handing it out with
+    // no cooldown at all.
     for (const req of this.state.unlockRequests) {
-      if (req.status === 'pending' || req.status === 'ready') {
-        req.status = 'superseded';
-        req.closedAt = now;
-        req.note = `Password rotated (${reason}).`;
-      }
+      if (req.closedAt) continue;
+      if (req.status === 'pending' || req.status === 'ready') req.status = 'superseded';
+      req.closedAt = now;
+      req.closedReason = `Password rotated (${reason}).`;
     }
   }
 
@@ -244,8 +258,12 @@ class App {
   // ----------------------------------------------------------------- unlock
 
   #latestOpenRequest() {
+    const generation = this.#vaultGeneration();
     for (let i = this.state.unlockRequests.length - 1; i >= 0; i -= 1) {
       const req = this.state.unlockRequests[i];
+      if (req.closedAt) continue;
+      // A request only speaks for the password it was made against.
+      if ((req.generation ?? 0) !== generation) continue;
       if (req.status === 'pending' || req.status === 'ready' || req.status === 'revealed') {
         return req;
       }
@@ -262,6 +280,7 @@ class App {
     const now = Date.now();
     const request = {
       id: randomUUID(),
+      generation: this.#vaultGeneration(),
       requestedAt: new Date(now).toISOString(),
       availableAt: new Date(now + this.state.cooldownHours * 3600000).toISOString(),
       cooldownHours: this.state.cooldownHours,
@@ -329,7 +348,17 @@ class App {
   /** The only method in the codebase that returns the password. */
   revealPassword() {
     const open = this.#latestOpenRequest();
-    if (!open) throw fail('No unlock has been requested.', 409, 'no_request');
+    if (!open) {
+      const last = this.state.unlockRequests.at(-1);
+      if (last && last.closedReason) {
+        throw fail(
+          `That unlock no longer applies — ${last.closedReason} Request a new unlock and wait out the cooldown.`,
+          409,
+          'superseded',
+        );
+      }
+      throw fail('No unlock has been requested.', 409, 'no_request');
+    }
     const now = Date.now();
     const availableAt = Date.parse(open.availableAt);
     if (now < availableAt) {
@@ -368,6 +397,7 @@ class App {
       availableAt: req.availableAt,
       revealedAt: req.revealedAt,
       closedAt: req.closedAt,
+      closedReason: req.closedReason || null,
       cooldownHours: req.cooldownHours,
       note: req.note,
     }));

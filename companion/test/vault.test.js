@@ -239,3 +239,78 @@ test('a store picks up a write made by another process', () => {
   server.checkIn({ onTrack: true });
   assert.deepEqual(appAt(file).state.keywords, ['second']);
 });
+
+test('a revealed unlock does not carry over into the next session', () => {
+  // The reported bug: reveal, start a new session, then press "Reveal
+  // password" again and get the freshly generated one with no cooldown.
+  const app = freshApp();
+  app.setup({ cooldownHours: 12 });
+  app.startSession({ durationHours: 24 });
+  app.requestUnlock();
+
+  // Reach the cooldown the honest way, then reveal.
+  app.state.unlockRequests.at(-1).availableAt = new Date(Date.now() - 1000).toISOString();
+  const first = app.revealPassword().password;
+  app.stopSession({ password: first });
+
+  // Straight into a new session, well inside the 10-minute copy window.
+  app.startSession({ durationHours: 24 });
+
+  assert.throws(() => app.revealPassword(), /no longer applies/i);
+  const status = app.unlockStatus();
+  assert.equal(status.request, null, 'the button must not be live');
+  assert.equal(status.pending, false);
+
+  // And the old password really is dead.
+  assert.throws(() => app.stopSession({ password: first }), /Incorrect password/);
+
+  // Getting out again costs a fresh request and a fresh cooldown.
+  const reopened = app.requestUnlock();
+  assert.equal(reopened.request.status, 'pending');
+  assert.ok(reopened.request.availableInMs > 11 * 3600000);
+  assert.throws(() => app.revealPassword(), /Cooldown still running/);
+});
+
+test('the same hole is closed for a reveal that spans a setup re-run', () => {
+  const app = freshApp();
+  app.setup({ cooldownHours: 0 });
+  app.startSession({ durationHours: 24 });
+  app.requestUnlock();
+  const first = app.revealPassword().password;
+  app.stopSession({ password: first });
+
+  app.setup({ cooldownHours: 0 }); // rotates too
+  assert.throws(() => app.revealPassword(), /no longer applies/i);
+});
+
+test('rotation closes the request without destroying the note or the log', () => {
+  const app = freshApp();
+  app.setup({ cooldownHours: 0 });
+  app.startSession({ durationHours: 24 });
+  app.requestUnlock({ note: 'felt rough tonight' });
+  const password = app.revealPassword().password;
+  app.stopSession({ password });
+  app.startSession({ durationHours: 24 });
+
+  const [entry] = app.unlockHistory();
+  assert.equal(entry.note, 'felt rough tonight', 'the user note must survive');
+  assert.equal(entry.status, 'revealed', 'the log still shows it was revealed');
+  assert.ok(entry.revealedAt);
+  assert.ok(entry.closedAt);
+  assert.match(entry.closedReason, /rotated/i);
+});
+
+test('a cancelled request stays cancelled through a rotation', () => {
+  const app = freshApp();
+  app.setup({ cooldownHours: 12 });
+  app.startSession({ durationHours: 24 });
+  app.requestUnlock();
+  app.cancelUnlock();
+  const closedAt = app.state.unlockRequests.at(-1).closedAt;
+
+  app.state.session.endsAt = new Date(Date.now() - 1000).toISOString();
+  assert.equal(app.sessionActive(), false);
+  app.startSession({ durationHours: 24 });
+  assert.equal(app.unlockHistory().at(-1).status, 'cancelled');
+  assert.equal(app.unlockHistory().at(-1).closedAt, closedAt, 'not re-closed');
+});

@@ -113,11 +113,21 @@ function renderLists(config, active) {
   if (!hideKeywords && !listsDirty.keywords) $('keywords').value = asLines(config.keywords);
 }
 
+/** Never leave a password on screen once its request has closed. */
+function hidePasswordUnless(revealable) {
+  if (revealable) return;
+  $('password-box').hidden = true;
+  $('password-value').textContent = '';
+  $('password-note').textContent = '';
+}
+
 function renderUnlock(unlock) {
   const req = unlock.request;
   const reveal = $('unlock-reveal');
   const cancel = $('unlock-cancel');
   const request = $('unlock-request');
+
+  hidePasswordUnless(req && req.revealable);
 
   if (!req) {
     $('unlock-state').textContent = unlock.active
